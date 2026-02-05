@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Banka Uyumlu Kredi Hesaplama</title>
+    <title>Kredi Hesaplama</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -64,8 +64,8 @@
             const [currency, setCurrency] = useState('EUR');
             const [interestRateMonthly, setInterestRateMonthly] = useState('');
             
-            const [periodMonths, setPeriodMonths] = useState('3'); 
-            const [installmentCount, setInstallmentCount] = useState('4');
+            const [periodMonths, setPeriodMonths] = useState('1'); 
+            const [installmentCount, setInstallmentCount] = useState('');
             const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); 
             
             const [commissionRate, setCommissionRate] = useState('');
@@ -254,8 +254,7 @@
                     {/* HEADER */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 print:hidden">
                         <div>
-                            <h1 className="text-2xl font-bold text-slate-800">Banka Uyumlu Kredi Hesaplama</h1>
-                            <p className="text-slate-500 text-sm mt-1">Ticari Krediler İçin Gün Esaslı Ödeme Planı Simülasyonu</p>
+                            <h1 className="text-2xl font-bold text-slate-800">Kredi Hesaplama</h1>
                         </div>
                         <button 
                             onClick={handlePrint}
