@@ -1,428 +1,519 @@
-import React, { useState } from 'react';
-import { Calculator, Calendar, Percent, FileText, TrendingUp, Loader2 } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banka Uyumlu Kredi Hesaplama</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel (JSX Derleyicisi) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-const App = () => {
-  // Varsayılan Değerler
-  const [loanAmount, setLoanAmount] = useState('');
-  const [currency, setCurrency] = useState('EUR');
-  const [interestRateMonthly, setInterestRateMonthly] = useState('');
-  
-  // Ödeme Sıklığı
-  const [periodMonths, setPeriodMonths] = useState('1'); 
-  const [installmentCount, setInstallmentCount] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); 
-  
-  // Masraflar
-  const [commissionRate, setCommissionRate] = useState('');
-  const [commissionType, setCommissionType] = useState('percent'); // 'percent' (%) veya 'permille' (‰)
-  
-  const [bsmvRate, setBsmvRate] = useState(0); 
-  const [kkdfRate, setKkdfRate] = useState(0);
-  
-  const [isLoading, setIsLoading] = useState(false);
-  const [isCalculated, setIsCalculated] = useState(false);
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-  const [schedule, setSchedule] = useState([]);
-  const [summary, setSummary] = useState({
-    totalPayment: 0,
-    totalInterest: 0,
-    totalPrincipal: 0,
-    commissionAmount: 0,
-    equalInstallment: 0
-  });
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('tr-TR', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2
-    }).format(amount);
-  };
-
-  const formatDate = (date) => {
-    return new Intl.DateTimeFormat('tr-TR').format(date);
-  };
-
-  const getDaysDiff = (date1, date2) => {
-    const oneDay = 24 * 60 * 60 * 1000;
-    return Math.round(Math.abs((date2 - date1) / oneDay));
-  };
-
-  // --- HEDEF ARAMA ALGORİTMASI (GOAL SEEK) ---
-  const findEqualInstallment = (dates, totalTaxRate) => {
-    const amount = Number(loanAmount);
-    const rate = Number(interestRateMonthly);
-    const period = Number(periodMonths); 
-    const count = Number(installmentCount);
-
-    let min = amount / count; 
-    let max = amount * (1 + rate/100 * period * count); 
-    let precision = 0.001; 
-    let calculatedInstallment = 0;
-
-    for (let iter = 0; iter < 100; iter++) { 
-        calculatedInstallment = (min + max) / 2;
-        let tempPrincipal = amount;
-        
-        for (let i = 1; i <= count; i++) {
-            const days = getDaysDiff(dates[i-1], dates[i]);
-            const dailyRate = (rate / 100) / 30;
-            const interest = tempPrincipal * dailyRate * days;
-            const tax = interest * totalTaxRate;
-            const principalPay = calculatedInstallment - interest - tax;
-            tempPrincipal -= principalPay;
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Yazdırma Ayarları */
+        @media print {
+            .print\:hidden { display: none !important; }
+            .print\:block { display: block !important; }
+            body { background-color: white; }
+            .shadow-sm { box-shadow: none !important; }
+            .border { border-color: #e5e7eb !important; }
         }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
 
-        if (Math.abs(tempPrincipal) < precision) {
-            break; 
-        } else if (tempPrincipal > 0) {
-            min = calculatedInstallment;
-        } else {
-            max = calculatedInstallment;
-        }
-    }
-    return calculatedInstallment;
-  };
+    <div id="root"></div>
 
-  const calculateLoan = () => {
-    if (!loanAmount || !interestRateMonthly || !installmentCount) {
-        alert("Lütfen tüm zorunlu alanları doldurunuz.");
-        return;
-    }
+    <script type="text/babel">
+        const { useState } = React;
 
-    setIsLoading(true);
+        // --- İKON BİLEŞENLERİ (SVG) ---
+        const CalculatorIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+        );
+        const CalendarIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+        );
+        const FileTextIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
+        );
+        const Loader2Icon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+        );
+        const PrinterIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+        );
+        const ChevronDownIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m6 9 6 6 6-6"/></svg>
+        );
 
-    setTimeout(() => {
-        let tempSchedule = [];
-        let totalInt = 0;
-        let totalPrin = 0;
-        
-        const count = Number(installmentCount);
-        const period = Number(periodMonths);
-        const amount = Number(loanAmount);
-        const rate = Number(interestRateMonthly);
-
-        // 1. Tarihleri Oluştur
-        let dates = [];
-        let currentDate = new Date(startDate);
-        dates.push(new Date(currentDate)); 
-
-        for (let i = 0; i < count; i++) {
-            currentDate = new Date(currentDate.setMonth(currentDate.getMonth() + parseInt(period)));
-            dates.push(new Date(currentDate));
-        }
-
-        const totalTaxRate = bsmvRate + kkdfRate;
-
-        // 2. Eşit Taksit Tutarını Bul (Solver)
-        const solvedInstallment = findEqualInstallment(dates, totalTaxRate);
-
-        // 3. Tabloyu Nihai Rakamlarla Oluştur
-        let currentPrincipal = amount;
-        
-        for (let i = 1; i <= count; i++) {
-            const prevDate = dates[i-1];
-            const payDate = dates[i];
-            const days = getDaysDiff(prevDate, payDate);
-
-            // Faiz Hesabı
-            const dailyRate = (rate / 100) / 30;
-            let interestPayment = currentPrincipal * dailyRate * days;
-            const taxPayment = interestPayment * totalTaxRate;
-
-            // Taksit Tutarı
-            let totalInstallment = solvedInstallment;
+        // --- ANA UYGULAMA ---
+        const App = () => {
+            // State Tanımları
+            const [loanAmount, setLoanAmount] = useState('');
+            const [currency, setCurrency] = useState('EUR');
+            const [interestRateMonthly, setInterestRateMonthly] = useState('');
             
-            let principalPayment = totalInstallment - interestPayment - taxPayment;
+            const [periodMonths, setPeriodMonths] = useState('3'); 
+            const [installmentCount, setInstallmentCount] = useState('4');
+            const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]); 
+            
+            const [commissionRate, setCommissionRate] = useState('');
+            const [commissionType, setCommissionType] = useState('permille'); 
+            
+            const [bsmvRate, setBsmvRate] = useState(''); 
+            const [kkdfRate, setKkdfRate] = useState('');
+            
+            const [isLoading, setIsLoading] = useState(false);
+            const [isCalculated, setIsCalculated] = useState(false);
 
-            if (i === count) {
-                principalPayment = currentPrincipal;
-                totalInstallment = principalPayment + interestPayment + taxPayment;
-            }
-
-            const remainingPrincipal = currentPrincipal - principalPayment;
-
-            tempSchedule.push({
-                period: i,
-                date: payDate,
-                days: days,
-                principalPayment: principalPayment,
-                interestPayment: interestPayment,
-                taxPayment: taxPayment,
-                totalInstallment: totalInstallment,
-                remainingPrincipal: Math.max(0, remainingPrincipal)
+            const [schedule, setSchedule] = useState([]);
+            const [summary, setSummary] = useState({
+                totalPayment: 0,
+                totalInterest: 0,
+                totalPrincipal: 0,
+                totalTax: 0,
+                commissionAmount: 0,
+                equalInstallment: 0
             });
 
-            totalInt += interestPayment;
-            totalPrin += principalPayment;
-            currentPrincipal = remainingPrincipal;
-        }
+            // Yardımcı Fonksiyonlar
+            const formatCurrency = (amount) => {
+                return new Intl.NumberFormat('tr-TR', {
+                style: 'currency',
+                currency: currency,
+                minimumFractionDigits: 2
+                }).format(amount);
+            };
 
-        // Kullandırım Ücreti Hesaplama
-        let commissionAmount = 0;
-        if (commissionRate) {
-            const commRateVal = Number(commissionRate);
-            if (commissionType === 'percent') {
-                commissionAmount = amount * (commRateVal / 100);
-            } else {
-                // Binde hesabı
-                commissionAmount = amount * (commRateVal / 1000);
-            }
-        }
+            const formatDate = (date) => {
+                return new Intl.DateTimeFormat('tr-TR').format(date);
+            };
 
-        setSchedule(tempSchedule);
-        setSummary({
-            totalPayment: tempSchedule.reduce((acc, item) => acc + item.totalInstallment, 0),
-            totalInterest: totalInt,
-            totalPrincipal: totalPrin,
-            commissionAmount: commissionAmount,
-            equalInstallment: solvedInstallment
-        });
-        
-        setIsCalculated(true);
-        setIsLoading(false);
-    }, 600);
-  };
+            const getDaysDiff = (date1, date2) => {
+                const oneDay = 24 * 60 * 60 * 1000;
+                return Math.round(Math.abs((date2 - date1) / oneDay));
+            };
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-4 font-sans text-gray-800">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* SOL PANEL */}
-        <div className="lg:col-span-4 space-y-4">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-xl font-bold mb-4 flex items-center text-blue-700">
-              <Calculator className="w-5 h-5 mr-2" /> Kredi Parametreleri
-            </h2>
+            // Hedef Arama (Goal Seek) Algoritması
+            const findEqualInstallment = (dates, totalTaxRate) => {
+                const amount = Number(loanAmount);
+                const rate = Number(interestRateMonthly);
+                const period = Number(periodMonths); 
+                const count = Number(installmentCount);
 
-            {/* Kredi Tutarı */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-600 mb-1">Kredi Tutarı</label>
-              <div className="relative">
-                <input 
-                  type="number" 
-                  value={loanAmount}
-                  placeholder="0"
-                  onChange={(e) => setLoanAmount(e.target.value)}
-                  className="w-full p-2 pl-3 pr-12 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                />
-                <select 
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="absolute right-1 top-1 bottom-1 bg-gray-100 border-none rounded text-sm font-semibold px-2 outline-none cursor-pointer"
-                >
-                  <option value="EUR">EUR</option>
-                  <option value="USD">USD</option>
-                  <option value="TRY">TRY</option>
-                </select>
-              </div>
-            </div>
+                let min = amount / count; 
+                let max = amount * (1 + rate/100 * period * count); 
+                let precision = 0.001; 
+                let calculatedInstallment = 0;
 
-            {/* Faiz Oranı */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-600 mb-1">Aylık Faiz Oranı (%)</label>
-              <div className="relative">
-                <input 
-                  type="number" 
-                  step="0.01"
-                  placeholder="0.00"
-                  value={interestRateMonthly}
-                  onChange={(e) => setInterestRateMonthly(e.target.value)}
-                  className="w-full p-2 pl-8 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                />
-                <Percent className="w-4 h-4 absolute left-2.5 top-3 text-gray-400" />
-              </div>
-            </div>
+                for (let iter = 0; iter < 100; iter++) { 
+                    calculatedInstallment = (min + max) / 2;
+                    let tempPrincipal = amount;
+                    
+                    for (let i = 1; i <= count; i++) {
+                        const days = getDaysDiff(dates[i-1], dates[i]);
+                        const dailyRate = (rate / 100) / 30;
+                        const interest = tempPrincipal * dailyRate * days;
+                        const tax = interest * totalTaxRate;
+                        const principalPay = calculatedInstallment - interest - tax;
+                        tempPrincipal -= principalPay;
+                    }
 
-            {/* Vade Yapısı */}
-            <div className="grid grid-cols-1 gap-3 mb-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Ödeme Sıklığı</label>
-                    <select
-                      value={periodMonths}
-                      onChange={(e) => setPeriodMonths(e.target.value)}
-                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white"
-                    >
-                        <option value="1">Aylık (Her Ay)</option>
-                        <option value="3">3 Aylık (Çeyrek Dönem)</option>
-                        <option value="6">6 Aylık (Yarıyıl)</option>
-                        <option value="12">Yıllık</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-600 mb-1">Taksit Sayısı</label>
-                    <input 
-                      type="number" 
-                      min="1"
-                      placeholder="0"
-                      value={installmentCount}
-                      onChange={(e) => setInstallmentCount(e.target.value)}
-                      className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                    />
-                </div>
-            </div>
+                    if (Math.abs(tempPrincipal) < precision) {
+                        break; 
+                    } else if (tempPrincipal > 0) {
+                        min = calculatedInstallment;
+                    } else {
+                        max = calculatedInstallment;
+                    }
+                }
+                return calculatedInstallment;
+            };
 
-            {/* Tarih */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-600 mb-1">Kredi Başlangıç Tarihi</label>
-              <div className="relative">
-                <input 
-                  type="date" 
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full p-2 pl-8 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all cursor-pointer"
-                />
-                <Calendar className="w-4 h-4 absolute left-2.5 top-3 text-gray-400" />
-              </div>
-            </div>
+            const calculateLoan = () => {
+                if (!loanAmount || !interestRateMonthly || !installmentCount) {
+                    alert("Lütfen Kredi Tutarı, Faiz Oranı ve Taksit Sayısını doldurunuz.");
+                    return;
+                }
 
-            {/* Masraflar */}
-            <div className="pt-4 border-t border-gray-100 mt-4">
-                <h3 className="text-sm font-semibold text-gray-500 mb-3">Masraf & Vergiler</h3>
-                <div className="mb-3">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Kullandırım Ücreti</label>
-                  <div className="flex items-center">
-                     <input 
-                        type="number" 
-                        step="0.001"
-                        placeholder="0.00"
-                        value={commissionRate} 
-                        onChange={(e) => setCommissionRate(e.target.value)}
-                        className="w-full p-2 text-sm border rounded-l-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                     />
-                     <select
-                        value={commissionType}
-                        onChange={(e) => setCommissionType(e.target.value)}
-                        className="bg-gray-100 border-t border-b border-r rounded-r-lg px-2 py-2 text-sm text-gray-700 outline-none hover:bg-gray-200 cursor-pointer h-full"
-                     >
-                         <option value="percent">% (Yüzde)</option>
-                         <option value="permille">‰ (Binde)</option>
-                     </select>
-                  </div>
-                </div>
-            </div>
+                setIsLoading(true);
 
-            {/* HESAPLA BUTONU */}
-            <button
-                onClick={calculateLoan}
-                disabled={isLoading}
-                className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all transform active:scale-95 flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-                {isLoading ? (
-                    <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Hesaplanıyor...
-                    </>
-                ) : (
-                    <>
-                        Hesapla
-                    </>
-                )}
-            </button>
+                setTimeout(() => {
+                    let tempSchedule = [];
+                    let totalInt = 0;
+                    let totalPrin = 0;
+                    let totalTx = 0;
+                    
+                    const count = Number(installmentCount);
+                    const period = Number(periodMonths);
+                    const amount = Number(loanAmount);
+                    const rate = Number(interestRateMonthly);
+                    
+                    // Vergiler
+                    const bsmv = bsmvRate ? Number(bsmvRate) / 100 : 0;
+                    const kkdf = kkdfRate ? Number(kkdfRate) / 100 : 0;
+                    const totalTaxRate = bsmv + kkdf;
 
-          </div>
+                    // 1. Tarihleri Oluştur
+                    let dates = [];
+                    let currentDate = new Date(startDate);
+                    dates.push(new Date(currentDate)); 
 
-          {isCalculated && (
-            <div className="bg-blue-600 text-white p-6 rounded-xl shadow-lg animate-fade-in-up">
-                <div className="flex items-center justify-between mb-4 border-b border-blue-500 pb-2">
-                    <span className="text-blue-100 text-sm">Toplam Geri Ödeme</span>
-                    <span className="font-bold text-lg">{formatCurrency(summary.totalPayment)}</span>
-                </div>
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-blue-100 text-sm">Toplam Faiz</span>
-                    <span className="font-medium">{formatCurrency(summary.totalInterest)}</span>
-                </div>
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-blue-100 text-sm">Kullandırım Ücreti (Peşin)</span>
-                    <span className="font-medium text-yellow-300">{formatCurrency(summary.commissionAmount)}</span>
-                </div>
-            </div>
-          )}
-        </div>
+                    for (let i = 0; i < count; i++) {
+                        currentDate = new Date(currentDate.setMonth(currentDate.getMonth() + parseInt(period)));
+                        dates.push(new Date(currentDate));
+                    }
 
-        {/* SAĞ PANEL: Ödeme Tablosu */}
-        <div className="lg:col-span-8">
-           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[500px] relative">
-               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                   <h3 className="font-bold text-gray-700 flex items-center">
-                       <FileText className="w-5 h-5 mr-2 text-blue-600" /> Gün Esaslı Ödeme Planı
-                   </h3>
-                   {isCalculated && (
-                    <div className="flex items-center text-xs text-green-600 bg-green-50 px-3 py-1 rounded-full">
-                            <TrendingUp className="w-3 h-3 mr-1" />
-                            Optimizasyon Tamamlandı
+                    // 2. Eşit Taksit Tutarını Bul (Solver)
+                    const solvedInstallment = findEqualInstallment(dates, totalTaxRate);
+
+                    // 3. Tabloyu Nihai Rakamlarla Oluştur
+                    let currentPrincipal = amount;
+                    
+                    for (let i = 1; i <= count; i++) {
+                        const prevDate = dates[i-1];
+                        const payDate = dates[i];
+                        const days = getDaysDiff(prevDate, payDate);
+
+                        const dailyRate = (rate / 100) / 30;
+                        let interestPayment = currentPrincipal * dailyRate * days;
+                        const taxPayment = interestPayment * totalTaxRate;
+
+                        let totalInstallment = solvedInstallment;
+                        let principalPayment = totalInstallment - interestPayment - taxPayment;
+
+                        if (i === count) {
+                            principalPayment = currentPrincipal;
+                            totalInstallment = principalPayment + interestPayment + taxPayment;
+                        }
+
+                        const remainingPrincipal = currentPrincipal - principalPayment;
+
+                        tempSchedule.push({
+                            period: i,
+                            date: payDate,
+                            days: days,
+                            principalPayment: principalPayment,
+                            interestPayment: interestPayment,
+                            taxPayment: taxPayment,
+                            totalInstallment: totalInstallment,
+                            remainingPrincipal: Math.max(0, remainingPrincipal)
+                        });
+
+                        totalInt += interestPayment;
+                        totalPrin += principalPayment;
+                        totalTx += taxPayment;
+                        currentPrincipal = remainingPrincipal;
+                    }
+
+                    // Kullandırım Ücreti
+                    let commissionAmount = 0;
+                    if (commissionRate) {
+                        const commRateVal = Number(commissionRate);
+                        if (commissionType === 'percent') {
+                            commissionAmount = amount * (commRateVal / 100);
+                        } else {
+                            commissionAmount = amount * (commRateVal / 1000);
+                        }
+                    }
+
+                    setSchedule(tempSchedule);
+                    setSummary({
+                        totalPayment: tempSchedule.reduce((acc, item) => acc + item.totalInstallment, 0),
+                        totalInterest: totalInt,
+                        totalPrincipal: totalPrin,
+                        totalTax: totalTx,
+                        commissionAmount: commissionAmount,
+                        equalInstallment: solvedInstallment
+                    });
+                    
+                    setIsCalculated(true);
+                    setIsLoading(false);
+                }, 500);
+            };
+
+            const handlePrint = () => {
+                window.print();
+            };
+
+            return (
+                <div className="min-h-screen p-4 md:p-8 font-sans">
+                <div className="max-w-7xl mx-auto">
+                    
+                    {/* HEADER */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 print:hidden">
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-800">Banka Uyumlu Kredi Hesaplama</h1>
+                            <p className="text-slate-500 text-sm mt-1">Ticari Krediler İçin Gün Esaslı Ödeme Planı Simülasyonu</p>
+                        </div>
+                        <button 
+                            onClick={handlePrint}
+                            className="bg-slate-800 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-sm text-sm font-medium"
+                        >
+                            <PrinterIcon className="w-5 h-5" />
+                            Yazdır / PDF
+                        </button>
                     </div>
-                   )}
-               </div>
-               
-               {/* Boş Durum veya Tablo */}
-               {!isCalculated ? (
-                   <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-gray-400">
-                       {isLoading ? (
-                           <div className="text-center">
-                               <Loader2 className="w-12 h-12 animate-spin text-blue-500 mb-4 mx-auto" />
-                               <p className="text-gray-600 font-medium">Ödeme planı optimize ediliyor...</p>
-                               <p className="text-sm text-gray-400 mt-2">Gün esaslı faiz hesaplanıyor</p>
-                           </div>
-                       ) : (
-                           <div className="text-center p-8">
-                               <Calculator className="w-16 h-16 mb-4 mx-auto text-gray-200" />
-                               <p className="text-lg font-medium text-gray-500">Henüz hesaplama yapılmadı</p>
-                               <p className="text-sm text-gray-400 mt-2 max-w-xs mx-auto">
-                                   Sol panelden kredi detaylarını girip "Hesapla" butonuna basınız.
-                               </p>
-                           </div>
-                       )}
-                   </div>
-               ) : (
-                   <div className="overflow-x-auto animate-fade-in">
-                       <table className="w-full text-sm text-left">
-                           <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b">
-                               <tr>
-                                   <th className="px-4 py-3">Sıra</th>
-                                   <th className="px-4 py-3">Vade</th>
-                                   <th className="px-4 py-3 text-center">Gün</th>
-                                   <th className="px-4 py-3 text-right">Anapara</th>
-                                   <th className="px-4 py-3 text-right">Faiz</th>
-                                   <th className="px-4 py-3 text-right">Taksit</th>
-                                   <th className="px-4 py-3 text-right">Kalan</th>
-                               </tr>
-                           </thead>
-                           <tbody>
-                               {schedule.map((row, index) => (
-                                   <tr key={row.period} className={`border-b hover:bg-blue-50 transition-colors ${index === schedule.length - 1 ? 'bg-gray-50' : ''}`}>
-                                       <td className="px-4 py-3 font-medium">{row.period}</td>
-                                       <td className="px-4 py-3 text-gray-600">{formatDate(row.date)}</td>
-                                       <td className="px-4 py-3 text-center">
-                                           <span className="inline-block px-2 py-1 bg-gray-100 rounded text-xs font-semibold text-gray-600">
-                                               {row.days}
-                                           </span>
-                                       </td>
-                                       <td className="px-4 py-3 text-right font-medium text-gray-700">{formatCurrency(row.principalPayment)}</td>
-                                       <td className="px-4 py-3 text-right text-red-600">{formatCurrency(row.interestPayment)}</td>
-                                       <td className="px-4 py-3 text-right font-bold text-blue-700">{formatCurrency(row.totalInstallment)}</td>
-                                       <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(row.remainingPrincipal)}</td>
-                                   </tr>
-                               ))}
-                           </tbody>
-                           <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-200">
-                                <tr>
-                                    <td colSpan="3" className="px-4 py-3 text-right text-gray-600 uppercase">Toplam</td>
-                                    <td className="px-4 py-3 text-right text-gray-800">{formatCurrency(summary.totalPrincipal)}</td>
-                                    <td className="px-4 py-3 text-right text-red-700">{formatCurrency(summary.totalInterest)}</td>
-                                    <td className="px-4 py-3 text-right text-blue-800">{formatCurrency(summary.totalPayment)}</td>
-                                    <td className="px-4 py-3"></td>
-                                </tr>
-                           </tfoot>
-                       </table>
-                   </div>
-               )}
-           </div>
-        </div>
 
-      </div>
-    </div>
-  );
-};
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 print:block">
+                        
+                        {/* SOL PANEL (INPUTS) */}
+                        <div className="lg:col-span-3 space-y-4 print:hidden">
+                            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 sticky top-4">
+                                <h2 className="text-lg font-bold text-blue-700 mb-5 pb-2 border-b border-gray-100">
+                                    Kredi Detayları
+                                </h2>
 
-export default App;
+                                <div className="space-y-4">
+                                    {/* Kredi Tutarı */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Kredi Tutarı</label>
+                                        <div className="relative">
+                                            <input 
+                                                type="number" 
+                                                value={loanAmount}
+                                                onChange={(e) => setLoanAmount(e.target.value)}
+                                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all font-medium text-gray-700"
+                                            />
+                                            <select 
+                                                value={currency}
+                                                onChange={(e) => setCurrency(e.target.value)}
+                                                className="absolute right-1 top-1 bottom-1 bg-gray-50 border-none rounded text-xs font-bold px-2 text-gray-600 outline-none cursor-pointer"
+                                            >
+                                                <option value="EUR">EUR</option>
+                                                <option value="USD">USD</option>
+                                                <option value="TRY">TRY</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Vade Başlangıcı */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Vade Başlangıcı</label>
+                                        <div className="relative">
+                                            <input 
+                                                type="date" 
+                                                value={startDate}
+                                                onChange={(e) => setStartDate(e.target.value)}
+                                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-gray-700 font-medium cursor-pointer"
+                                            />
+                                            <CalendarIcon className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+                                        </div>
+                                    </div>
+
+                                    {/* Aylık Faiz */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Aylık Faiz (%)</label>
+                                        <input 
+                                            type="number" 
+                                            step="0.01"
+                                            value={interestRateMonthly}
+                                            onChange={(e) => setInterestRateMonthly(e.target.value)}
+                                            className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-gray-700"
+                                        />
+                                    </div>
+
+                                    {/* Ödeme Sıklığı */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Ödeme Sıklığı</label>
+                                        <div className="relative">
+                                            <select
+                                                value={periodMonths}
+                                                onChange={(e) => setPeriodMonths(e.target.value)}
+                                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all appearance-none bg-white font-medium text-gray-700 cursor-pointer"
+                                            >
+                                                <option value="1">Her Ay</option>
+                                                <option value="3">3 Ayda Bir</option>
+                                                <option value="6">6 Ayda Bir</option>
+                                                <option value="12">Yılda Bir</option>
+                                            </select>
+                                            <ChevronDownIcon className="w-4 h-4 absolute right-3 top-3.5 text-gray-400 pointer-events-none" />
+                                        </div>
+                                    </div>
+
+                                    {/* Taksit Sayısı */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Taksit Sayısı</label>
+                                        <input 
+                                            type="number" 
+                                            value={installmentCount}
+                                            onChange={(e) => setInstallmentCount(e.target.value)}
+                                            className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-gray-700"
+                                        />
+                                    </div>
+
+                                    {/* BSMV & KKDF */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">BSMV (%)</label>
+                                            <input 
+                                                type="number" 
+                                                value={bsmvRate}
+                                                placeholder="0"
+                                                onChange={(e) => setBsmvRate(e.target.value)}
+                                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-gray-700"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">KKDF (%)</label>
+                                            <input 
+                                                type="number" 
+                                                value={kkdfRate}
+                                                placeholder="0"
+                                                onChange={(e) => setKkdfRate(e.target.value)}
+                                                className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-gray-700"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Kullandırım Ücreti */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Kullandırım Ücreti</label>
+                                        <div className="flex">
+                                            <input 
+                                                type="number" 
+                                                step="0.001"
+                                                placeholder="0"
+                                                value={commissionRate} 
+                                                onChange={(e) => setCommissionRate(e.target.value)}
+                                                className="w-full p-2.5 border border-r-0 border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 outline-none font-medium text-gray-700"
+                                            />
+                                            <select
+                                                value={commissionType}
+                                                onChange={(e) => setCommissionType(e.target.value)}
+                                                className="bg-gray-50 border border-gray-300 border-l-0 rounded-r-lg px-2 text-xs font-bold text-gray-600 outline-none cursor-pointer"
+                                            >
+                                                <option value="permille">‰ (Binde)</option>
+                                                <option value="percent">% (Yüzde)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={calculateLoan}
+                                        disabled={isLoading}
+                                        className="w-full mt-6 bg-blue-700 hover:bg-blue-800 text-white font-bold py-3.5 px-4 rounded-lg shadow-md hover:shadow-lg transition-all transform active:scale-[0.98] flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+                                    >
+                                        {isLoading ? (
+                                            <Loader2Icon className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            "HESAPLA"
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SAĞ PANEL (RESULTS) */}
+                        <div className="lg:col-span-9 space-y-6">
+                            
+                            {/* ÖZET KARTLARI */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Taksit Tutarı</div>
+                                    <div className="text-xl lg:text-2xl font-extrabold text-slate-800">
+                                        {isCalculated ? formatCurrency(summary.equalInstallment) : "-"}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Toplam Faiz</div>
+                                    <div className="text-xl lg:text-2xl font-extrabold text-blue-600">
+                                        {isCalculated ? formatCurrency(summary.totalInterest) : "-"}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Vergi / Fon</div>
+                                    <div className="text-xl lg:text-2xl font-extrabold text-red-500">
+                                        {isCalculated ? formatCurrency(summary.totalTax) : "-"}
+                                    </div>
+                                </div>
+
+                                <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
+                                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Toplam Ödeme</div>
+                                    <div className="text-xl lg:text-2xl font-extrabold text-green-600">
+                                        {isCalculated ? formatCurrency(summary.totalPayment) : "-"}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Kullandırım Ücreti Bilgisi */}
+                            {isCalculated && summary.commissionAmount > 0 && (
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 flex justify-between items-center px-4 print:hidden">
+                                    <span className="font-semibold">Peşin Ödenecek Kullandırım Ücreti:</span>
+                                    <span className="font-bold text-lg">{formatCurrency(summary.commissionAmount)}</span>
+                                </div>
+                            )}
+
+                            {/* TABLO */}
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden min-h-[400px]">
+                                {!isCalculated ? (
+                                    <div className="flex flex-col items-center justify-center h-[400px] text-gray-400">
+                                        <FileTextIcon className="w-16 h-16 mb-4 text-gray-200" />
+                                        <p className="text-gray-500 font-medium">Hesaplama sonucu burada görüntülenecek.</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-slate-800 text-white uppercase text-xs tracking-wider">
+                                                <tr>
+                                                    <th className="px-6 py-4 font-semibold rounded-tl-lg">No</th>
+                                                    <th className="px-6 py-4 font-semibold">Vade Tarihi</th>
+                                                    <th className="px-6 py-4 font-semibold text-right">Anapara</th>
+                                                    <th className="px-6 py-4 font-semibold text-right">Faiz</th>
+                                                    <th className="px-6 py-4 font-semibold text-right">Vergi/Fon</th>
+                                                    <th className="px-6 py-4 font-semibold text-right">Taksit Tutarı</th>
+                                                    <th className="px-6 py-4 font-semibold text-right rounded-tr-lg">Kalan Anapara</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {schedule.map((row) => (
+                                                    <tr key={row.period} className="hover:bg-blue-50 transition-colors even:bg-slate-50">
+                                                        <td className="px-6 py-4 font-bold text-slate-700">{row.period}</td>
+                                                        <td className="px-6 py-4 text-slate-600 font-medium">{formatDate(row.date)}</td>
+                                                        <td className="px-6 py-4 text-right text-slate-700 font-medium">{formatCurrency(row.principalPayment)}</td>
+                                                        <td className="px-6 py-4 text-right text-blue-600 font-bold">{formatCurrency(row.interestPayment)}</td>
+                                                        <td className="px-6 py-4 text-right text-red-500 font-medium">{formatCurrency(row.taxPayment)}</td>
+                                                        <td className="px-6 py-4 text-right text-slate-800 font-bold">{formatCurrency(row.totalInstallment)}</td>
+                                                        <td className="px-6 py-4 text-right text-slate-500">{formatCurrency(row.remainingPrincipal)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot className="bg-gray-100 border-t-2 border-gray-200">
+                                                <tr>
+                                                    <td colSpan="2" className="px-6 py-4 font-bold text-slate-700 uppercase text-xs tracking-wider text-right">Toplamlar</td>
+                                                    <td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(summary.totalPrincipal)}</td>
+                                                    <td className="px-6 py-4 text-right font-bold text-blue-700">{formatCurrency(summary.totalInterest)}</td>
+                                                    <td className="px-6 py-4 text-right font-bold text-red-600">{formatCurrency(summary.totalTax)}</td>
+                                                    <td className="px-6 py-4 text-right font-bold text-slate-900">{formatCurrency(summary.totalPayment)}</td>
+                                                    <td></td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
